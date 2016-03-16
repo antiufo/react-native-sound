@@ -13,12 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.google.android.exoplayer.upstream;
+package com.zmxv.RNSound;
 
 import com.google.android.exoplayer.C;
 import com.google.android.exoplayer.util.Assertions;
 import com.google.android.exoplayer.util.Predicate;
 import com.google.android.exoplayer.util.Util;
+import com.google.android.exoplayer.upstream.HttpDataSource;
+import com.google.android.exoplayer.upstream.TransferListener;
+import com.google.android.exoplayer.upstream.DataSpec;
 
 import android.text.TextUtils;
 import android.util.Log;
@@ -44,10 +47,10 @@ import java.util.regex.Pattern;
  * <p>
  * By default this implementation will not follow cross-protocol redirects (i.e. redirects from
  * HTTP to HTTPS or vice versa). Cross-protocol redirects can be enabled by using the
- * {@link #DefaultHttpDataSource(String, Predicate, TransferListener, int, int, boolean)}
+ * {@link #ShamanDataSource(String, Predicate, TransferListener, int, int, boolean)}
  * constructor and passing {@code true} as the final argument.
  */
-public class DefaultHttpDataSource implements HttpDataSource {
+public class ShamanDataSource implements HttpDataSource {
 
   /**
    * The default connection timeout, in milliseconds.
@@ -59,7 +62,7 @@ public class DefaultHttpDataSource implements HttpDataSource {
   public static final int DEFAULT_READ_TIMEOUT_MILLIS = 8 * 1000;
 
   private static final int MAX_REDIRECTS = 20; // Same limit as okhttp.
-  private static final String TAG = "DefaultHttpDataSource";
+  private static final String TAG = "ShamanDataSource";
   private static final Pattern CONTENT_RANGE_HEADER =
       Pattern.compile("^bytes (\\d+)-(\\d+)/(\\d+)$");
   private static final AtomicReference<byte[]> skipBufferReference = new AtomicReference<>();
@@ -89,7 +92,7 @@ public class DefaultHttpDataSource implements HttpDataSource {
    *     rejected by the predicate then a {@link HttpDataSource.InvalidContentTypeException} is
    *     thrown from {@link #open(DataSpec)}.
    */
-  public DefaultHttpDataSource(String userAgent, Predicate<String> contentTypePredicate) {
+  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate) {
     this(userAgent, contentTypePredicate, null);
   }
 
@@ -100,7 +103,7 @@ public class DefaultHttpDataSource implements HttpDataSource {
    *     thrown from {@link #open(DataSpec)}.
    * @param listener An optional listener.
    */
-  public DefaultHttpDataSource(String userAgent, Predicate<String> contentTypePredicate,
+  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate,
       TransferListener listener) {
     this(userAgent, contentTypePredicate, listener, DEFAULT_CONNECT_TIMEOUT_MILLIS,
         DEFAULT_READ_TIMEOUT_MILLIS);
@@ -117,7 +120,7 @@ public class DefaultHttpDataSource implements HttpDataSource {
    * @param readTimeoutMillis The read timeout, in milliseconds. A timeout of zero is interpreted
    *     as an infinite timeout.
    */
-  public DefaultHttpDataSource(String userAgent, Predicate<String> contentTypePredicate,
+  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate,
       TransferListener listener, int connectTimeoutMillis, int readTimeoutMillis) {
     this(userAgent, contentTypePredicate, listener, connectTimeoutMillis, readTimeoutMillis, false);
   }
@@ -136,7 +139,7 @@ public class DefaultHttpDataSource implements HttpDataSource {
    * @param allowCrossProtocolRedirects Whether cross-protocol redirects (i.e. redirects from HTTP
    *     to HTTPS and vice versa) are enabled.
    */
-  public DefaultHttpDataSource(String userAgent, Predicate<String> contentTypePredicate,
+  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate,
       TransferListener listener, int connectTimeoutMillis, int readTimeoutMillis,
       boolean allowCrossProtocolRedirects) {
     this.userAgent = Assertions.checkNotEmpty(userAgent);

@@ -52,7 +52,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
         
         Allocator allocator = new DefaultAllocator(BUFFER_SEGMENT_SIZE);
         String userAgent = Util.getUserAgent(context, "ExoPlayerDemo");
-        DataSource dataSource = new DefaultUriDataSource(context, null, userAgent);
+        DataSource dataSource = new ShamanDataSource("Meow",  null);
         ExtractorSampleSource sampleSource = new ExtractorSampleSource(radioUri, dataSource, allocator, BUFFER_SEGMENT_SIZE * BUFFER_SEGMENT_COUNT);
         MediaCodecAudioTrackRenderer audioRenderer = new MediaCodecAudioTrackRenderer(sampleSource, MediaCodecSelector.DEFAULT);
         player.prepare(audioRenderer);
