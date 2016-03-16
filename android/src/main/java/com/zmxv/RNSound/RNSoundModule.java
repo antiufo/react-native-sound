@@ -12,8 +12,12 @@ import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableArray;
+import com.facebook.react.bridge.ReadableMapKeySetIterator;
+import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import com.google.android.exoplayer.ExoPlayer;
@@ -26,6 +30,10 @@ import com.google.android.exoplayer.util.Util;
 import com.google.android.exoplayer.extractor.ExtractorSampleSource;
 import com.google.android.exoplayer.MediaCodecAudioTrackRenderer;
 import com.google.android.exoplayer.MediaCodecSelector;
+
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import android.media.AudioManager;
 import android.net.Uri;
@@ -77,6 +85,98 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
       sendEvent(key, eventName, params);
   }
   
+  @ReactMethod
+  public void extractData(String url, ReadableMap map, Callback callback){
+      try{
+          Element page = HttpUtils.getHtmlNode(HttpUtils.asUrl(url));
+          
+          callback.invoke(extractData(page, map));
+          
+      }catch(Exception ex){
+          WritableMap params = Arguments.createMap();
+          params.putArray("causes", serializeException(ex));
+          callback.invoke(null, params);
+      }
+  }
+  
+  private Object extractData(Element root, ReadableMap map) {
+      if(map.hasKey("itemSelector")) {
+          
+          Elements elements = root.select(map.getString("itemSelector"));
+          WritableArray arr = Arguments.createArray();
+          
+          for (Element element : elements) {
+              arr.pushMap(extractSingleItem(element, map));
+          }
+          return arr;
+      }
+      return extractSingleItem(root, map);
+  }
+  
+  private WritableMap extractSingleItem(Element element, ReadableMap map) {
+      WritableMap result = Arguments.createMap();
+      ReadableMapKeySetIterator iterator = map.keySetIterator();
+      while(iterator.hasNextKey()) {
+          String key = iterator.nextKey();
+          if(key.equals("itemSelector")) continue;
+           ReadableType type = map.getType(key);
+           
+           String selector = null;
+           String attribute = null;
+           String regex = null;
+           
+           if(type == ReadableType.String) {
+               selector = map.getString(key);
+           } else if( type == ReadableType.Array) {
+               ReadableArray args = map.getArray(key);
+               selector = getAtOrDefault(args, 0);
+               attribute = getAtOrDefault(args, 1);
+               regex = getAtOrDefault(args, 2);
+           } else if (type == ReadableType.Map) {
+               ReadableMap submap = map.getMap(key);
+               if(!submap.hasKey("itemSelector")) throw new RuntimeException("Invalid extraction specification. Expected itemSelector.");
+               result.putArray(key, (WritableArray)extractData(element, submap));
+               continue;
+           } else throw new RuntimeException("Invalid extraction specification.");
+          
+          String value = HttpUtils.tryGetValue(element, selector, attribute, regex); 
+          result.putString(key, value);
+      }
+      
+      return result;
+  }
+  
+  public String getAtOrDefault(ReadableArray arr, int index){
+      if(index < arr.size()){
+          return arr.getString(index);
+      }
+      return null;
+  }
+  
+  private WritableArray serializeException(Throwable c){
+      WritableArray arr = Arguments.createArray();
+      while(c != null){
+                
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            c.printStackTrace(pw);
+                
+            WritableMap z = Arguments.createMap();
+            z.putString("message", c.getMessage());
+            z.putString("type", c.getClass().getCanonicalName());
+            z.putString("stackTrace", sw.toString());
+            arr.pushMap(z);
+            c = c.getCause();
+      }
+            
+      return arr;
+  }
+  
+  @ReactMethod
+  public void setProxy(String host, int port) {
+    if(host == null) HttpUtils.setProxy(null);
+    else HttpUtils.setProxy(host, port);
+  }
 
   @ReactMethod
   public void prepare(final String fileName, final String key) {
@@ -101,7 +201,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
         player.addListener(listener);
         sendEvent(key, "created");
       }catch(Throwable ex){
-        sendEvent(key, "error", ex.getMessage());
+        WritableMap params = Arguments.createMap();
+        params.putArray("causes", serializeException(ex));
+        sendEvent(key, "error", params);
       }
   }
   
@@ -113,21 +215,8 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
         }
 
         public void onPlayerError(ExoPlaybackException exoPlaybackException){
-            WritableArray arr = Arguments.createArray();
-            Throwable c = exoPlaybackException;
-            while(c != null){
-                
-                StringWriter sw = new StringWriter();
-                PrintWriter pw = new PrintWriter(sw);
-                c.printStackTrace(pw);
-                
-
-                arr.pushString(c.getMessage()+"\n"+c.getClass().getCanonicalName()+"\n"+sw.toString());
-                c = c.getCause();
-            }
-            
             WritableMap params = Arguments.createMap();
-            params.putArray("causes", arr);
+            params.putArray("causes", serializeException(exoPlaybackException));
             sendEvent(key, "playerError", params);
         }
 
