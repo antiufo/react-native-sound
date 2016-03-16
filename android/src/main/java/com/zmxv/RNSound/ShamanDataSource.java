@@ -42,6 +42,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import io.shaman.HttpContent;
+import io.shaman.HttpUtils;
+import io.shaman.runtime.KeyValuePair;
+
 /**
  * A {@link HttpDataSource} that uses Android's {@link HttpURLConnection}.
  * <p>
@@ -86,15 +90,7 @@ public class ShamanDataSource implements HttpDataSource {
   private long bytesSkipped;
   private long bytesRead;
 
-  /**
-   * @param userAgent The User-Agent string that should be used.
-   * @param contentTypePredicate An optional {@link Predicate}. If a content type is
-   *     rejected by the predicate then a {@link HttpDataSource.InvalidContentTypeException} is
-   *     thrown from {@link #open(DataSpec)}.
-   */
-  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate) {
-    this(userAgent, contentTypePredicate, null);
-  }
+  private URL shamanUrl;
 
   /**
    * @param userAgent The User-Agent string that should be used.
@@ -103,27 +99,11 @@ public class ShamanDataSource implements HttpDataSource {
    *     thrown from {@link #open(DataSpec)}.
    * @param listener An optional listener.
    */
-  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate,
-      TransferListener listener) {
-    this(userAgent, contentTypePredicate, listener, DEFAULT_CONNECT_TIMEOUT_MILLIS,
-        DEFAULT_READ_TIMEOUT_MILLIS);
+  public ShamanDataSource(URL url) {
+    this(url, "Shaman", null, null, DEFAULT_CONNECT_TIMEOUT_MILLIS,
+        DEFAULT_READ_TIMEOUT_MILLIS, true);
   }
 
-  /**
-   * @param userAgent The User-Agent string that should be used.
-   * @param contentTypePredicate An optional {@link Predicate}. If a content type is
-   *     rejected by the predicate then a {@link HttpDataSource.InvalidContentTypeException} is
-   *     thrown from {@link #open(DataSpec)}.
-   * @param listener An optional listener.
-   * @param connectTimeoutMillis The connection timeout, in milliseconds. A timeout of zero is
-   *     interpreted as an infinite timeout.
-   * @param readTimeoutMillis The read timeout, in milliseconds. A timeout of zero is interpreted
-   *     as an infinite timeout.
-   */
-  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate,
-      TransferListener listener, int connectTimeoutMillis, int readTimeoutMillis) {
-    this(userAgent, contentTypePredicate, listener, connectTimeoutMillis, readTimeoutMillis, false);
-  }
 
   /**
    * @param userAgent The User-Agent string that should be used.
@@ -139,9 +119,10 @@ public class ShamanDataSource implements HttpDataSource {
    * @param allowCrossProtocolRedirects Whether cross-protocol redirects (i.e. redirects from HTTP
    *     to HTTPS and vice versa) are enabled.
    */
-  public ShamanDataSource(String userAgent, Predicate<String> contentTypePredicate,
+  public ShamanDataSource(URL url, String userAgent, Predicate<String> contentTypePredicate,
       TransferListener listener, int connectTimeoutMillis, int readTimeoutMillis,
       boolean allowCrossProtocolRedirects) {
+    this.shamanUrl = url;
     this.userAgent = Assertions.checkNotEmpty(userAgent);
     this.contentTypePredicate = contentTypePredicate;
     this.listener = listener;
@@ -332,7 +313,9 @@ public class ShamanDataSource implements HttpDataSource {
    * Establishes a connection, following redirects to do so where permitted.
    */
   private HttpURLConnection makeConnection(DataSpec dataSpec) throws IOException {
-    URL url = new URL(dataSpec.uri.toString());
+      HttpURLConnection connection = HttpUtils.getResponse(shamanUrl, null);
+      return connection;
+    /*URL url = new URL(dataSpec.uri.toString());
     byte[] postBody = dataSpec.postBody;
     long position = dataSpec.position;
     long length = dataSpec.length;
@@ -342,7 +325,7 @@ public class ShamanDataSource implements HttpDataSource {
       // HttpURLConnection disallows cross-protocol redirects, but otherwise performs redirection
       // automatically. This is the behavior we want, so use it.
       HttpURLConnection connection = makeConnection(
-          url, postBody, position, length, allowGzip, true /* followRedirects */);
+          url, postBody, position, length, allowGzip, true /* followRedirects *-/);
       return connection;
     }
 
@@ -350,15 +333,15 @@ public class ShamanDataSource implements HttpDataSource {
     int redirectCount = 0;
     while (redirectCount++ <= MAX_REDIRECTS) {
       HttpURLConnection connection = makeConnection(
-          url, postBody, position, length, allowGzip, false /* followRedirects */);
+          url, postBody, position, length, allowGzip, false /* followRedirects *-/);
       int responseCode = connection.getResponseCode();
       if (responseCode == HttpURLConnection.HTTP_MULT_CHOICE
           || responseCode == HttpURLConnection.HTTP_MOVED_PERM
           || responseCode == HttpURLConnection.HTTP_MOVED_TEMP
           || responseCode == HttpURLConnection.HTTP_SEE_OTHER
           || (postBody == null
-              && (responseCode == 307 /* HTTP_TEMP_REDIRECT */
-                  || responseCode == 308 /* HTTP_PERM_REDIRECT */))) {
+              && (responseCode == 307 /* HTTP_TEMP_REDIRECT *-/
+                  || responseCode == 308 /* HTTP_PERM_REDIRECT *-/))) {
         // For 300, 301, 302, and 303 POST requests follow the redirect and are transformed into
         // GET requests. For 307 and 308 POST requests are not redirected.
         postBody = null;
@@ -371,7 +354,7 @@ public class ShamanDataSource implements HttpDataSource {
     }
 
     // If we get here we've been redirected more times than are permitted.
-    throw new NoRouteToHostException("Too many redirects: " + redirectCount);
+    throw new NoRouteToHostException("Too many redirects: " + redirectCount);*/
   }
 
   /**
@@ -386,6 +369,8 @@ public class ShamanDataSource implements HttpDataSource {
    */
   private HttpURLConnection makeConnection(URL url, byte[] postBody, long position,
       long length, boolean allowGzip, boolean followRedirects) throws IOException {
+    return makeConnection(null);
+    /*
     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
     connection.setConnectTimeout(connectTimeoutMillis);
     connection.setReadTimeout(readTimeoutMillis);
@@ -417,6 +402,7 @@ public class ShamanDataSource implements HttpDataSource {
       connection.connect();
     }
     return connection;
+    */
   }
 
   /**
