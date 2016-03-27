@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -86,16 +87,14 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
   }
   
   @ReactMethod
-  public void extractData(String url, ReadableMap map, Callback callback){
+  public void extractData(String url, ReadableMap map, Promise promise){
       try{
           Element page = HttpUtils.getHtmlNode(HttpUtils.asUrl(url));
           
-          callback.invoke(extractData(page, map));
+          promise.resolve(extractData(page, map));
           
       }catch(Exception ex){
-          WritableMap params = Arguments.createMap();
-          params.putArray("causes", serializeException(ex));
-          callback.invoke(null, params);
+          promise.reject(serializeException(ex));
       }
   }
   
@@ -153,7 +152,10 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
       return null;
   }
   
-  private WritableArray serializeException(Throwable c){
+  private Throwable serializeException(Throwable c){
+      return c;
+  }
+  private WritableArray serializeExceptionToArray(Throwable c){
       WritableArray arr = Arguments.createArray();
       while(c != null){
                 
@@ -177,9 +179,19 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
     if(host == null) HttpUtils.setProxy(null);
     else HttpUtils.setProxy(host, port);
   }
+  
+  @ReactMethod
+  public void resolveUrl(String rules, String specification, Promise p){
+      try{
+          URL url = io.shaman.Interpreter.resolveUrlAsync(rules, specification);
+          p.resolve(url != null ? url.toExternalForm() : null);
+      }catch(Exception ex){
+          p.reject(serializeException(ex));
+      }
+  }
 
   @ReactMethod
-  public void prepare(final String fileName, final String key) {
+  public void prepare(final String fileName, final String key, Promise p) {
     try{
         
         //Uri url = Uri.parse(fileName);
@@ -187,11 +199,12 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
         this.playerPool.put(key, player);
         
         
-        Uri radioUri = Uri.parse(fileName);
+        
         //HttpUtils.setProxy("192.168.1.16", 8888);
         
         Allocator allocator = new DefaultAllocator(BUFFER_SEGMENT_SIZE);
         URL url = HttpUtils.asUrl(fileName);
+        Uri radioUri = Uri.parse(fileName);
         DataSource dataSource = new ShamanDataSource(url);
         ExtractorSampleSource sampleSource = new ExtractorSampleSource(radioUri, dataSource, allocator, BUFFER_SEGMENT_SIZE * BUFFER_SEGMENT_COUNT);
         MediaCodecAudioTrackRenderer audioRenderer = new MediaCodecAudioTrackRenderer(sampleSource, MediaCodecSelector.DEFAULT);
@@ -199,11 +212,12 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
         PlayerListener listener = new PlayerListener();
         listener.key = key;
         player.addListener(listener);
-        sendEvent(key, "created");
+        p.resolve(null);
       }catch(Throwable ex){
-        WritableMap params = Arguments.createMap();
-        params.putArray("causes", serializeException(ex));
-        sendEvent(key, "error", params);
+        p.reject(serializeException(ex));
+        //WritableMap params = Arguments.createMap();
+        //params.putArray("causes", serializeExceptionToArray(ex));
+        //sendEvent(key, "error", params);
       }
   }
   
@@ -216,7 +230,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 
         public void onPlayerError(ExoPlaybackException exoPlaybackException){
             WritableMap params = Arguments.createMap();
-            params.putArray("causes", serializeException(exoPlaybackException));
+            params.putArray("causes", serializeExceptionToArray(exoPlaybackException));
             sendEvent(key, "playerError", params);
         }
 
@@ -261,19 +275,20 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void getInfo(final String key, final Callback callback) {
+  public void getInfo(final String key, final Promise p) {
     ExoPlayer player = this.playerPool.get(key);
     if (player == null) {
-      callback.invoke("wrongId");
+      p.reject("wrongId");
       return;
     }
-    callback.invoke(true, player.getCurrentPosition() * .001,
-        player.getBufferedPercentage(),
-        player.getBufferedPosition(),
-        player.getCurrentPosition(),
-        player.getDuration(),
-        player.getPlayWhenReady(),
-        player.getPlaybackState(),
-        player.isPlayWhenReadyCommitted());
+    WritableMap map = Arguments.createMap();
+    map.putDouble("currentPosition", player.getCurrentPosition());
+    map.putDouble("bufferedPercentage", player.getBufferedPercentage());
+    map.putDouble("bufferedPosition", player.getBufferedPosition());
+    map.putDouble("duration", player.getDuration());
+    map.putBoolean("playWhenReady", player.getPlayWhenReady());
+    map.putDouble("playbackState", player.getPlaybackState());
+    map.putBoolean("playWhenReadyCommitted", player.isPlayWhenReadyCommitted());
+    p.resolve(map);
   }
 }
